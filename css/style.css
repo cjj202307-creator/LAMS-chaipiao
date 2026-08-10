@@ -388,3 +388,103 @@ body {
     font-weight: 500;
     color: var(--danger);
 }
+
+/* ====== 拆票逻辑说明页 ====== */
+.logic-intro {
+    background: var(--primary-light);
+    border: 1px solid var(--primary);
+    color: var(--primary-dark);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.logic-section {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 14px;
+}
+.logic-section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--primary-dark);
+    margin-bottom: 12px;
+    padding-left: 10px;
+    border-left: 4px solid var(--primary);
+}
+.logic-steps {
+    list-style: none;
+    counter-reset: none;
+    margin: 0;
+    padding: 0;
+}
+.logic-steps li {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border);
+}
+.logic-steps li:last-child { border-bottom: none; }
+.step-no {
+    flex: 0 0 26px;
+    height: 26px;
+    line-height: 26px;
+    text-align: center;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 600;
+}
+.step-desc {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+.logic-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.logic-table th {
+    background: var(--bg-secondary);
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+.logic-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+.logic-table tr:last-child td { border-bottom: none; }
+.logic-text {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.8;
+}
+.yellow-bg {
+    background: #FFF9C4;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid #E0D98C;
+}
+.red-font {
+    color: #D32F2F;
+    font-weight: 700;
+}
+.logic-note {
+    background: var(--bg-secondary);
+    border-style: dashed;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.logic-note code, .logic-intro code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
