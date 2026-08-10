@@ -37,7 +37,7 @@
                 <button class="tab active" data-tab="tabValidation">数据校验</button>
                 <button class="tab" data-tab="tabResult">拆票结果</button>
                 <button class="tab" data-tab="tabReasons">分票理由</button>
-                <button class="tab" data-tab="tabConfig">规则配置</button>
+                <button class="tab" data-tab="tabConfig">拆票逻辑</button>
             </div>
 
             <div class="tab-content active" id="tabValidation">
@@ -73,8 +73,8 @@
     <!-- 提示框 -->
     <div class="alert" id="alertBox"></div>
 
-    <!-- SheetJS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- SheetJS（xlsx-js-style 分支，支持写入单元格样式：高亮/框线） -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <!-- 应用脚本 -->
     <script src="js/config.js"></script>
     <script src="js/splitEngine.js"></script>
