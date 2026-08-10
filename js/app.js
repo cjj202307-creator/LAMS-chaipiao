@@ -112,6 +112,13 @@ async function handleFile(file) {
         document.getElementById('uploadInfo').textContent =
             `${fileName} → ${rows.length} 行 → ${Object.keys(result.ticketNumbers).length} 票`;
 
+        // 自动留底：生成结果副本存入浏览器并自动下载
+        try {
+            await autoSaveAudit(result, fileName, rows, file);
+        } catch (e) {
+            console.warn('留底保存失败', e);
+        }
+
         showProcessing(false);
 
     } catch (err) {
@@ -379,14 +386,24 @@ function applyCellStyle(ws, styleFn) {
     }
 }
 
-// 主表样式：表头加粗+蓝底；高亮行整行黄底；差异单元格红字加粗；全部带细框线
+// 设置所有行高（磅/pt，1磅=1pt），不换行
+function setRowHeights(ws, heightPt) {
+    if (!ws || !ws['!ref']) return;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    ws['!rows'] = [];
+    for (let r = range.s.r; r <= range.e.r; r++) {
+        ws['!rows'][r] = { hpt: heightPt, customHeight: true };
+    }
+}
+
+// 主表样式：表头加粗+蓝底；高亮行整行黄底；差异单元格红字加粗；全部带细框线；行高14.5、不换行
 function styleMainSheet(ws, outputHeaders, rowRefs) {
     applyCellStyle(ws, (r, c, cell) => {
-        const style = { border: fullBorder(), alignment: { vertical: 'center', wrapText: true } };
+        const style = { border: fullBorder(), alignment: { vertical: 'center', wrapText: false } };
         if (r === 0) {
             style.font = { bold: true, color: { rgb: 'FF1A1A1A' } };
             style.fill = { fgColor: { rgb: 'FFDCE6F1' } };
-            style.alignment = { vertical: 'center', horizontal: 'center', wrapText: true };
+            style.alignment = { vertical: 'center', horizontal: 'center', wrapText: false };
             return style;
         }
         const rowObj = rowRefs[r - 1];
@@ -401,44 +418,34 @@ function styleMainSheet(ws, outputHeaders, rowRefs) {
     });
 }
 
-// 通用网格样式：表头加粗+底色，其余带细框线（分票理由 / 数据校验 sheet）
+// 通用网格样式：表头加粗+底色，其余带细框线（分票理由 / 数据校验 sheet）；行高14.5、不换行
 function applyGridStyle(ws, headerRows) {
     applyCellStyle(ws, (r, c, cell) => {
-        const style = { border: fullBorder(), alignment: { vertical: 'top', wrapText: true } };
+        const style = { border: fullBorder(), alignment: { vertical: 'center', wrapText: false } };
         if (r < (headerRows || 1)) {
             style.font = { bold: true, color: { rgb: 'FF1A1A1A' } };
             style.fill = { fgColor: { rgb: 'FFDCE6F1' } };
-            style.alignment = { vertical: 'center', horizontal: 'center', wrapText: true };
+            style.alignment = { vertical: 'center', horizontal: 'center', wrapText: false };
         }
         return style;
     });
 }
 
-function downloadResult() {
-    if (!currentResult) {
-        showAlert('请先上传文件并完成拆票', 'error');
-        return;
-    }
-
-    const result = currentResult;
+// 构建结果工作簿（主表 + 分票理由 + 数据校验），含高亮/框线/行高14.5/不换行
+function buildWorkbook(result) {
     const headers = currentHeaders;
 
-    // 构建输出数据（数组形式）
+    // 主表
     const outputHeaders = ['分票编号', '分票', ...headers];
     const aoa = [outputHeaders];
     const rowRefs = [];  // 与 aoa 数据行一一对应，指向原始行对象（用于还原高亮）
 
     for (const row of result.resultRows) {
         if (row === null) {
-            // 空行
-            const emptyRow = new Array(outputHeaders.length).fill('');
-            aoa.push(emptyRow);
+            aoa.push(new Array(outputHeaders.length).fill(''));
             rowRefs.push(null);
         } else {
-            const rowData = [
-                row['分票编号'] || '',
-                row['分票'] || ''
-            ];
+            const rowData = [row['分票编号'] || '', row['分票'] || ''];
             for (const h of headers) {
                 rowData.push(row[h] != null ? row[h] : '');
             }
@@ -447,16 +454,15 @@ function downloadResult() {
         }
     }
 
-    // 创建工作簿
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 14 }, { wch: 40 }];
     for (let i = 2; i < outputHeaders.length; i++) ws['!cols'].push({ wch: 16 });
-    // 应用样式：表头、高亮行、差异单元格、框线
     styleMainSheet(ws, outputHeaders, rowRefs);
+    setRowHeights(ws, 14.5);
     XLSX.utils.book_append_sheet(wb, ws, '中芯');
 
-    // 添加分票理由sheet（带框线）
+    // 分票理由sheet（带框线、行高14.5、不换行）
     const reasonHeaders = ['分票编号', '对应分票标记', '拆分理由'];
     const reasonAoa = [reasonHeaders];
     for (const r of result.reasons) {
@@ -465,9 +471,10 @@ function downloadResult() {
     const wsReason = XLSX.utils.aoa_to_sheet(reasonAoa);
     wsReason['!cols'] = [{ wch: 16 }, { wch: 40 }, { wch: 80 }];
     applyGridStyle(wsReason, 1);
+    setRowHeights(wsReason, 14.5);
     XLSX.utils.book_append_sheet(wb, wsReason, '分票理由');
 
-    // 添加数据校验sheet（带框线）
+    // 数据校验sheet（带框线、行高14.5、不换行）
     const vReport = result.validation;
     if (vReport) {
         const vAoa = [
@@ -523,16 +530,179 @@ function downloadResult() {
         const wsValidation = XLSX.utils.aoa_to_sheet(vAoa);
         wsValidation['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 30 }, { wch: 30 }];
         applyGridStyle(wsValidation, 1);
+        setRowHeights(wsValidation, 14.5);
         XLSX.utils.book_append_sheet(wb, wsValidation, '数据校验');
     }
 
-    // 生成文件名
+    return wb;
+}
+
+function downloadResult() {
+    if (!currentResult) {
+        showAlert('请先上传文件并完成拆票', 'error');
+        return;
+    }
+
+    const wb = buildWorkbook(currentResult);
     const now = new Date();
     const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const fileName = `拆票结果_${ts}.xlsx`;
 
     XLSX.writeFile(wb, fileName);
     showAlert(`已下载：${fileName}`, 'success');
+}
+
+// ========================
+// 留底（审计）功能：每次上传拆票后自动保存结果副本
+// 纯前端实现（无后端）：结果文件存浏览器 IndexedDB，元数据存 localStorage，并自动下载留底文件
+// ========================
+const AUDIT_LOG_KEY = 'lams_audit_log';
+const AUDIT_LIMIT = 200;
+
+function loadAuditLog() {
+    try {
+        const raw = localStorage.getItem(AUDIT_LOG_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+}
+function saveAuditLog(log) {
+    try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(log.slice(0, AUDIT_LIMIT))); } catch (e) {}
+}
+
+function openAuditDB() {
+    return new Promise((resolve, reject) => {
+        if (!window.indexedDB) { reject(new Error('浏览器不支持IndexedDB')); return; }
+        const req = indexedDB.open('lams_audit_db', 1);
+        req.onupgradeneeded = () => {
+            if (!req.result.objectStoreNames.contains('results')) req.result.createObjectStore('results');
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+function auditDBPut(key, blob) {
+    return openAuditDB().then(db => new Promise((res, rej) => {
+        const tx = db.transaction('results', 'readwrite');
+        tx.objectStore('results').put(blob, key);
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+    }));
+}
+function auditDBGet(key) {
+    return openAuditDB().then(db => new Promise((res, rej) => {
+        const tx = db.transaction('results', 'readonly');
+        const r = tx.objectStore('results').get(key);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+    }));
+}
+
+function workbookToBlob(wb) {
+    const arr = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([arr], { type: 'application/octet-stream' });
+}
+
+// 每次拆票后调用：生成留底文件 -> 存IndexedDB -> 写日志 -> 自动下载
+async function autoSaveAudit(result, fileName, rows, file) {
+    const wb = buildWorkbook(result);
+    const blob = workbookToBlob(wb);
+
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const id = 'audit_' + now.getTime() + '_' + Math.random().toString(36).slice(2, 8);
+    const downloadName = `拆票留底_${ts}.xlsx`;
+
+    const record = {
+        id: id,
+        time: now.toLocaleString('zh-CN', { hour12: false }),
+        fileName: fileName,
+        fileSize: file && file.size ? file.size : 0,
+        rowCount: rows.length,
+        ticketCount: Object.keys(result.ticketNumbers).length,
+        inconsistentCount: result.inconsistentInfo.highlightedRows.size,
+        validationPassed: result.validation ? result.validation.passed : false,
+        downloadName: downloadName
+    };
+
+    try { await auditDBPut(id, blob); } catch (e) { console.warn('留底文件存储失败', e); }
+
+    const log = loadAuditLog();
+    log.unshift(record);
+    saveAuditLog(log);
+
+    // 自动下载留底文件（最佳努力；若浏览器拦截，可到"留底记录"页重新下载）
+    try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = downloadName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { console.warn('自动下载留底失败', e); }
+
+    if (document.getElementById('auditTable')) displayAuditLog();
+    showAlert('已自动生成留底文件：' + downloadName, 'success');
+}
+
+function downloadAuditBlob(id, name) {
+    auditDBGet(id).then(blob => {
+        if (!blob) { showAlert('留底文件已不存在（可能清理了浏览器数据）', 'error'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name || '拆票留底.xlsx';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }).catch(e => showAlert('读取留底失败：' + e.message, 'error'));
+}
+
+function displayAuditLog() {
+    const container = document.getElementById('auditTable');
+    if (!container) return;
+    const log = loadAuditLog();
+    if (log.length === 0) {
+        container.innerHTML = '<p class="no-data">暂无留底记录。每次上传并拆票后，系统会自动生成留底文件并保存在本浏览器。</p>';
+        return;
+    }
+    let html = '<table class="audit-table"><thead><tr>'
+        + '<th>时间</th><th>文件名</th><th>数据行</th><th>分票数</th><th>不一致行</th><th>校验</th><th>留底文件</th><th>操作</th>'
+        + '</tr></thead><tbody>';
+    for (const r of log) {
+        const vClass = r.validationPassed ? 'ok' : 'bad';
+        const vText = r.validationPassed ? '✅通过' : '❌未通过';
+        html += '<tr>'
+            + '<td>' + escapeHtml(r.time) + '</td>'
+            + '<td>' + escapeHtml(r.fileName) + '</td>'
+            + '<td>' + r.rowCount + '</td>'
+            + '<td>' + r.ticketCount + '</td>'
+            + '<td>' + r.inconsistentCount + '</td>'
+            + '<td class="' + vClass + '">' + vText + '</td>'
+            + '<td class="audit-file">' + escapeHtml(r.downloadName) + '</td>'
+            + '<td><button class="mini-btn" data-audit-id="' + r.id + '" data-audit-name="' + escapeHtml(r.downloadName) + '">重新下载</button></td>'
+            + '</tr>';
+    }
+    html += '</tbody></table>';
+    html += '<div class="audit-actions">'
+        + '<button class="mini-btn danger" id="clearAuditBtn">清空留底记录</button>'
+        + '<span class="audit-hint">留底文件保存在本浏览器（IndexedDB），仅本机可查看/下载；清空仅删除记录与文件索引，不影响已导出的Excel。</span>'
+        + '</div>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('[data-audit-id]').forEach(btn => {
+        btn.addEventListener('click', () => downloadAuditBlob(btn.dataset.auditId, btn.dataset.auditName));
+    });
+    const clearBtn = document.getElementById('clearAuditBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            if (confirm('确认清空所有留底记录？此操作不可恢复（已导出的Excel不受影响）。')) {
+                localStorage.removeItem(AUDIT_LOG_KEY);
+                openAuditDB().then(db => {
+                    const tx = db.transaction('results', 'readwrite');
+                    tx.objectStore('results').clear();
+                    tx.oncomplete = () => { displayAuditLog(); showAlert('留底记录已清空', 'success'); };
+                }).catch(() => { displayAuditLog(); });
+            }
+        });
+    }
 }
 
 // ========================
@@ -651,6 +821,9 @@ function displayConfig() {
     html += '<div class="logic-section logic-note"><p>说明：以上规则由 <code>js/config.js</code> 驱动，业务规则调整时只需修改配置，无需改动引擎代码。本页内容即由该配置实时生成，所见即所得。</p></div>';
 
     container.innerHTML = html;
+    // 同步渲染到首页常驻的「当前拆票规则」面板（业务人员一眼可见）
+    const rp = document.getElementById('rulesPanel');
+    if (rp) rp.innerHTML = html;
 }
 
 // ========================
@@ -659,6 +832,7 @@ function displayConfig() {
 document.addEventListener('DOMContentLoaded', () => {
     initFileUpload();
     displayConfig();
+    displayAuditLog();
 
     // 下载按钮
     document.getElementById('downloadBtn').addEventListener('click', downloadResult);
