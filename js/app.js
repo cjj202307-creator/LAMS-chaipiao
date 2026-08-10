@@ -664,7 +664,7 @@ function displayAuditLog() {
         return;
     }
     let html = '<table class="audit-table"><thead><tr>'
-        + '<th>时间</th><th>文件名</th><th>数据行</th><th>分票数</th><th>不一致行</th><th>校验</th><th>留底文件</th><th>操作</th>'
+        + '<th>时间</th><th>原始文件</th><th>大小</th><th>数据行</th><th>分票数</th><th>不一致行</th><th>校验</th><th>留底文件</th><th>操作</th>'
         + '</tr></thead><tbody>';
     for (const r of log) {
         const vClass = r.validationPassed ? 'ok' : 'bad';
@@ -672,6 +672,7 @@ function displayAuditLog() {
         html += '<tr>'
             + '<td>' + escapeHtml(r.time) + '</td>'
             + '<td>' + escapeHtml(r.fileName) + '</td>'
+            + '<td>' + formatSize(r.fileSize) + '</td>'
             + '<td>' + r.rowCount + '</td>'
             + '<td>' + r.ticketCount + '</td>'
             + '<td>' + r.inconsistentCount + '</td>'
@@ -722,6 +723,13 @@ function showAlert(msg, type) {
     alert.className = 'alert ' + (type || 'info');
     alert.style.display = 'block';
     setTimeout(() => { alert.style.display = 'none'; }, 5000);
+}
+
+function formatSize(bytes) {
+    if (!bytes || bytes <= 0) return '—';
+    const kb = bytes / 1024;
+    if (kb < 1024) return kb.toFixed(1) + ' KB';
+    return (kb / 1024).toFixed(2) + ' MB';
 }
 
 function escapeHtml(text) {
@@ -792,7 +800,6 @@ function displayConfig() {
     const prefixText = '免表票前缀「' + cfg.ticketPrefix['免表'] + '」，征税票前缀「' + cfg.ticketPrefix['default'] + '」；编号格式：前缀 + 月日(MMDD) + 两位序号。';
 
     let html = '';
-    html += '<div class="logic-intro">以下为当前线上版本实际执行的拆票逻辑（与 <code>js/config.js</code> 配置完全一致，本页由该配置实时生成）。业务人员可逐项核对每票的生成依据，避免"黑箱"。</div>';
 
     html += '<div class="logic-section"><h3>一、整体处理流程</h3><ol class="logic-steps">';
     steps.forEach(function (s) {
@@ -818,7 +825,7 @@ function displayConfig() {
 
     html += '<div class="logic-section"><h3>十、数据完整性校验</h3><p class="logic-text">拆分完成后，按 <b>uodId</b> 将结果与原始数据逐行逐单元格比对：行数是否一致、是否有丢失 / 多余 / 重复的uodId、原始列（除新增"分票编号/分票"两列外）是否完全一致。任一异常都会在"数据校验"页与下载的Excel中提示。</p></div>';
 
-    html += '<div class="logic-section logic-note"><p>说明：以上规则由 <code>js/config.js</code> 驱动，业务规则调整时只需修改配置，无需改动引擎代码。本页内容即由该配置实时生成，所见即所得。</p></div>';
+    html += '<div class="logic-section logic-note"><p>以上逻辑为当前拆分数据实际使用逻辑</p></div>';
 
     container.innerHTML = html;
     // 同步渲染到首页常驻的「当前拆票规则」面板（业务人员一眼可见）
@@ -829,10 +836,30 @@ function displayConfig() {
 // ========================
 // 初始化
 // ========================
+
+// 本机今日访问量：localStorage 按日期计数（仅统计本浏览器访问，仅供参考）
+function initTodayVisit() {
+    const el = document.getElementById('local_today_pv');
+    if (!el) return;
+    const today = new Date().toLocaleDateString('zh-CN');
+    const key = 'lams_today_visit_' + today;
+    let n = parseInt(localStorage.getItem(key) || '0', 10);
+    n = (isNaN(n) ? 0 : n) + 1;
+    localStorage.setItem(key, String(n));
+    el.textContent = n;
+    // 清理更早的日期键，避免无限增长
+    try {
+        Object.keys(localStorage).forEach(k => {
+            if (k.indexOf('lams_today_visit_') === 0 && k !== key) localStorage.removeItem(k);
+        });
+    } catch (e) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initFileUpload();
     displayConfig();
     displayAuditLog();
+    initTodayVisit();
 
     // 下载按钮
     document.getElementById('downloadBtn').addEventListener('click', downloadResult);
