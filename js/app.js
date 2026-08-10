@@ -193,7 +193,7 @@ function displayTable(result) {
     const container = document.getElementById('resultTable');
     const displayColumns = [
         'uodId', '分票编号', '分票', '产品编号', '产品名称',
-        '大PO', '小PO', '备案单位', '原产国',
+        '大PO', '小PO', '备案单位', '原产国', '出库备注',
         '账册号', '业务申报表号', '客户指令号'
     ];
 
@@ -234,9 +234,11 @@ function displayTable(result) {
     }
 
     // 图例
+    const hlDimLabels = SPLIT_CONFIG.highlightDimensions
+        .map(function (d) { return d.label; }).join(' / ');
     html += `
         <div class="legend">
-            <span class="legend-item"><span class="legend-color yellow-bg"></span>黄色行：同票内同产品编号，大PO/小PO/备案单位/原产国任一不一致</span>
+            <span class="legend-item"><span class="legend-color yellow-bg"></span>黄色行：同票内同产品编号，${hlDimLabels} 任一不一致</span>
             <span class="legend-item"><span class="legend-color red-font"></span>红色字体：具体不一致的单元格</span>
         </div>
     `;
@@ -744,6 +746,7 @@ function escapeHtml(text) {
 function displayConfig() {
     const container = document.getElementById('configDisplay');
     const cfg = SPLIT_CONFIG;
+    const hlDims = cfg.highlightDimensions.map(function (d) { return '「' + d.label + '」'; }).join('、');
 
     // 一、整体流程
     const steps = [
@@ -753,7 +756,7 @@ function displayConfig() {
         ['4', '131豁免判定', '原产国为美国时，按HSCODE是否在豁免清单判定「131豁免外 / 非131豁免外」'],
         ['5', 'PO分组', '同一基础标记下按PO分组，每票PO数量不超过上限，超出自动拆成多票'],
         ['6', '行数限制', '永芯每票最多40行，超出自动拆成多票'],
-        ['7', '一致性高亮', '同票内相同产品编号，若 大PO / 小PO / 备案单位 / 原产国 任一不同 → 整行黄色、差异单元格红色加粗'],
+        ['7', '一致性高亮', '同票内相同产品编号，若 ' + hlDims + ' 任一不同 → 整行黄色、差异单元格红色加粗'],
         ['8', '生成分票编号', '免表前缀MB、征税前缀TAX，格式为 前缀 + 月日 + 序号'],
         ['9', '生成分票理由', '逐票汇总本票包含的标记与拆分原因，便于追溯'],
         ['10', '数据完整性校验', '按uodId逐单元格比对拆票前后，确保无行丢失 / 多余 / 错位']
@@ -791,8 +794,6 @@ function displayConfig() {
         const val = cfg.maxRowsPerTicket[k] === null ? '无限制' : cfg.maxRowsPerTicket[k] + ' 行 / 票';
         return '<tr><td>' + label + '</td><td>' + val + '</td></tr>';
     }).join('');
-
-    const hlDims = cfg.highlightDimensions.map(function (d) { return '「' + d.label + '」'; }).join('、');
 
     const ex = cfg.exemption131;
     const exText = '原产国为美国：HSCODE在豁免清单 → ' + ex.usOriginRule.inList.status + '；不在清单 → ' + ex.usOriginRule.notInList.status + '。原产国非美国 → ' + ex.nonUsRule.status + '。';
