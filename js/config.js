@@ -9,14 +9,16 @@ const SPLIT_CONFIG = {
         { pattern: '天津中芯', label: '天津中芯', isTianjin: true },
         { pattern: '北京中芯', label: '北京中芯', isTianjin: false },
         { pattern: '中芯北方', label: '中芯北方', isTianjin: false },
-        { pattern: '中芯京城', label: '中芯京城', isTianjin: false },
+        // 业务人员反馈：历史数据中客户名曾误写为"中芯京城"，正确应为"中芯京诚"
+        // 为兼容历史错字数据，pattern 同时匹配两种写法，统一显示为"中芯京诚"
+        { pattern: ['中芯京诚', '中芯京城'], label: '中芯京诚', isTianjin: false },
         { pattern: '永芯',     label: '永芯',     isTianjin: false, isYongxin: true }
     ],
 
     // PO分组上限（每种客户类型一票最多包含几个PO）
     maxPOPerTicket: {
         '天津中芯': 3,
-        'default':  5   // 北京中芯/中芯北方/中芯京城/永芯/未知
+        'default':  5   // 北京中芯/中芯北方/中芯京诚/永芯/未知
     },
 
     // 行数上限（每种客户类型一票最多多少行数据）
@@ -25,7 +27,7 @@ const SPLIT_CONFIG = {
         'default': null  // 其他客户类型暂无行数限制
     },
 
-    // 征税规则 - 北京/北方/京城/永芯通用
+    // 征税规则 - 北京/北方/京诚/永芯通用
     // 注意：原产国为"中国"才拆征税，"中国台湾"不算
     beijingTaxRule: {
         // 优先级从高到低
