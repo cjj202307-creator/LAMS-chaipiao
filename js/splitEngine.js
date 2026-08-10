@@ -143,7 +143,8 @@ class SplitEngine {
         let isYongxin = false;
 
         for (const ct of this.config.customerTypes) {
-            if (customerOrder.includes(ct.pattern)) {
+            const patterns = Array.isArray(ct.pattern) ? ct.pattern : [ct.pattern];
+            if (patterns.some(p => customerOrder.includes(p))) {
                 mark += '_' + ct.label;
                 custType = ct.label;
                 isTianjin = ct.isTianjin || false;
