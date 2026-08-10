@@ -95,7 +95,9 @@ const SPLIT_CONFIG = {
         { columnName: '小PO',   label: '小PO' },
         { columnName: '备案单位', label: '备案单位' },
         { columnName: '原产国', label: '原产国' },
-        { columnName: '出库备注', label: '出库备注' }
+        { columnName: '出库备注', label: '出库备注' },
+        { columnName: '产品名称', label: '产品名称' },
+        { columnName: '客户料号', label: '客户料号' }
     ],
 
     // 分票编号前缀
