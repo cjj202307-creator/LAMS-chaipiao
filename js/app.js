@@ -192,7 +192,7 @@ function displayResults(result, originalRows) {
 function displayTable(result) {
     const container = document.getElementById('resultTable');
     const displayColumns = [
-        'uodId', '分票编号', '分票', '产品编号', '产品名称',
+        'uodId', '分票编号', '分票', '产品编号', '产品名称', '客户料号',
         '大PO', '小PO', '备案单位', '原产国', '出库备注',
         '账册号', '业务申报表号', '客户指令号'
     ];
