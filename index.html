@@ -13,6 +13,12 @@
             <p>上传 Excel 文件，自动完成拆票分组、高亮标注、生成分票理由</p>
         </div>
 
+        <!-- 当前拆票规则（业务人员可见，避免黑箱） -->
+        <details class="rules-panel" open>
+            <summary>📋 当前拆票规则（业务人员可查看，避免黑箱）</summary>
+            <div id="rulesPanel" class="rules-panel-inner"></div>
+        </details>
+
         <!-- 上传区域 -->
         <div class="drop-zone" id="dropZone">
             <div class="drop-zone-icon">📄</div>
@@ -38,6 +44,7 @@
                 <button class="tab" data-tab="tabResult">拆票结果</button>
                 <button class="tab" data-tab="tabReasons">分票理由</button>
                 <button class="tab" data-tab="tabConfig">拆票逻辑</button>
+                <button class="tab" data-tab="tabAudit">留底记录</button>
             </div>
 
             <div class="tab-content active" id="tabValidation">
@@ -60,6 +67,12 @@
 
             <div class="tab-content" id="tabConfig">
                 <div id="configDisplay"></div>
+            </div>
+
+            <div class="tab-content" id="tabAudit">
+                <div class="table-container">
+                    <div id="auditTable"></div>
+                </div>
             </div>
         </div>
     </div>
