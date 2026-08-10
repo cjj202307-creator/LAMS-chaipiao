@@ -837,29 +837,10 @@ function displayConfig() {
 // 初始化
 // ========================
 
-// 本机今日访问量：localStorage 按日期计数（仅统计本浏览器访问，仅供参考）
-function initTodayVisit() {
-    const el = document.getElementById('local_today_pv');
-    if (!el) return;
-    const today = new Date().toLocaleDateString('zh-CN');
-    const key = 'lams_today_visit_' + today;
-    let n = parseInt(localStorage.getItem(key) || '0', 10);
-    n = (isNaN(n) ? 0 : n) + 1;
-    localStorage.setItem(key, String(n));
-    el.textContent = n;
-    // 清理更早的日期键，避免无限增长
-    try {
-        Object.keys(localStorage).forEach(k => {
-            if (k.indexOf('lams_today_visit_') === 0 && k !== key) localStorage.removeItem(k);
-        });
-    } catch (e) {}
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     initFileUpload();
     displayConfig();
     displayAuditLog();
-    initTodayVisit();
 
     // 下载按钮
     document.getElementById('downloadBtn').addEventListener('click', downloadResult);
