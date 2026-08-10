@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中芯核销拆票工具</title>
     <link rel="stylesheet" href="css/style.css">
+    <!-- 访问统计：不蒜子（本地脚本，异步加载，加载失败不影响主功能） -->
+    <script async src="libs/busuanzi.pure.mini.js"></script>
 </head>
 <body>
     <div class="container">
@@ -18,6 +20,14 @@
             <summary>📋 当前拆票规则（业务人员可查看，避免黑箱）</summary>
             <div id="rulesPanel" class="rules-panel-inner"></div>
         </details>
+
+        <!-- 网站访问统计（不蒜子，零后端，仅统计访问量） -->
+        <div class="visit-stats">
+            <span class="visit-stats-title">📊 网站访问统计</span>
+            <span class="visit-item">总访问量 <b id="busuanzi_value_site_pv">—</b> 次</span>
+            <span class="visit-item">独立访客 <b id="busuanzi_value_site_uv">—</b> 人</span>
+            <span class="visit-note">数据由第三方「不蒜子」统计，仅显示访问量，不记录具体访问者身份；GitHub Pages 与 CloudStudio 两个地址分别计数。</span>
+        </div>
 
         <!-- 上传区域 -->
         <div class="drop-zone" id="dropZone">
@@ -86,8 +96,8 @@
     <!-- 提示框 -->
     <div class="alert" id="alertBox"></div>
 
-    <!-- SheetJS（xlsx-js-style 分支，支持写入单元格样式：高亮/框线） -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <!-- SheetJS（xlsx-js-style 分支，支持写入单元格样式：高亮/框线；本地内置，不依赖外部 CDN） -->
+    <script src="libs/xlsx.bundle.js"></script>
     <!-- 应用脚本 -->
     <script src="js/config.js"></script>
     <script src="js/splitEngine.js"></script>
