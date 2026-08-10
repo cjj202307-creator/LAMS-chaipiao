@@ -355,6 +355,65 @@ function displayValidation(report) {
 // ========================
 // 下载结果
 // ========================
+// ========================
+// Excel 样式工具（需 xlsx-js-style 支持写入单元格样式）
+// ========================
+const THIN_BORDER = { style: 'thin', color: { rgb: 'FFB0B0B0' } };
+
+function fullBorder() {
+    return { top: THIN_BORDER, bottom: THIN_BORDER, left: THIN_BORDER, right: THIN_BORDER };
+}
+
+// 遍历所有单元格并应用样式（styleFn(r, c, cell) -> 样式对象，写入 cell.s）
+function applyCellStyle(ws, styleFn) {
+    if (!ws || !ws['!ref']) return;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let r = range.s.r; r <= range.e.r; r++) {
+        for (let c = range.s.c; c <= range.e.c; c++) {
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const cell = ws[addr];
+            if (!cell) continue;
+            const st = styleFn(r, c, cell);
+            if (st) cell.s = st;
+        }
+    }
+}
+
+// 主表样式：表头加粗+蓝底；高亮行整行黄底；差异单元格红字加粗；全部带细框线
+function styleMainSheet(ws, outputHeaders, rowRefs) {
+    applyCellStyle(ws, (r, c, cell) => {
+        const style = { border: fullBorder(), alignment: { vertical: 'center', wrapText: true } };
+        if (r === 0) {
+            style.font = { bold: true, color: { rgb: 'FF1A1A1A' } };
+            style.fill = { fgColor: { rgb: 'FFDCE6F1' } };
+            style.alignment = { vertical: 'center', horizontal: 'center', wrapText: true };
+            return style;
+        }
+        const rowObj = rowRefs[r - 1];
+        if (rowObj && rowObj._isInconsistent) {
+            style.fill = { fgColor: { rgb: 'FFFFFF00' } };  // 黄色高亮整行
+            const colName = outputHeaders[c];
+            if (rowObj._redColumns && rowObj._redColumns.has(colName)) {
+                style.font = { bold: true, color: { rgb: 'FFFF0000' } };  // 红色加粗=差异单元格
+            }
+        }
+        return style;
+    });
+}
+
+// 通用网格样式：表头加粗+底色，其余带细框线（分票理由 / 数据校验 sheet）
+function applyGridStyle(ws, headerRows) {
+    applyCellStyle(ws, (r, c, cell) => {
+        const style = { border: fullBorder(), alignment: { vertical: 'top', wrapText: true } };
+        if (r < (headerRows || 1)) {
+            style.font = { bold: true, color: { rgb: 'FF1A1A1A' } };
+            style.fill = { fgColor: { rgb: 'FFDCE6F1' } };
+            style.alignment = { vertical: 'center', horizontal: 'center', wrapText: true };
+        }
+        return style;
+    });
+}
+
 function downloadResult() {
     if (!currentResult) {
         showAlert('请先上传文件并完成拆票', 'error');
@@ -367,12 +426,14 @@ function downloadResult() {
     // 构建输出数据（数组形式）
     const outputHeaders = ['分票编号', '分票', ...headers];
     const aoa = [outputHeaders];
+    const rowRefs = [];  // 与 aoa 数据行一一对应，指向原始行对象（用于还原高亮）
 
     for (const row of result.resultRows) {
         if (row === null) {
             // 空行
             const emptyRow = new Array(outputHeaders.length).fill('');
             aoa.push(emptyRow);
+            rowRefs.push(null);
         } else {
             const rowData = [
                 row['分票编号'] || '',
@@ -382,6 +443,7 @@ function downloadResult() {
                 rowData.push(row[h] != null ? row[h] : '');
             }
             aoa.push(rowData);
+            rowRefs.push(row);
         }
     }
 
@@ -389,19 +451,23 @@ function downloadResult() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{ wch: 14 }, { wch: 40 }];
+    for (let i = 2; i < outputHeaders.length; i++) ws['!cols'].push({ wch: 16 });
+    // 应用样式：表头、高亮行、差异单元格、框线
+    styleMainSheet(ws, outputHeaders, rowRefs);
     XLSX.utils.book_append_sheet(wb, ws, '中芯');
 
-    // 添加分票理由sheet
+    // 添加分票理由sheet（带框线）
     const reasonHeaders = ['分票编号', '对应分票标记', '拆分理由'];
     const reasonAoa = [reasonHeaders];
     for (const r of result.reasons) {
         reasonAoa.push([r.ticketNo, r.mark, r.reason]);
     }
     const wsReason = XLSX.utils.aoa_to_sheet(reasonAoa);
-    wsReason['!cols'] = [{ wch: 14 }, { wch: 50 }, { wch: 80 }];
+    wsReason['!cols'] = [{ wch: 16 }, { wch: 40 }, { wch: 80 }];
+    applyGridStyle(wsReason, 1);
     XLSX.utils.book_append_sheet(wb, wsReason, '分票理由');
 
-    // 添加数据校验sheet
+    // 添加数据校验sheet（带框线）
     const vReport = result.validation;
     if (vReport) {
         const vAoa = [
@@ -455,7 +521,8 @@ function downloadResult() {
         }
 
         const wsValidation = XLSX.utils.aoa_to_sheet(vAoa);
-        wsValidation['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 30 }, { wch: 30 }];
+        wsValidation['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 30 }, { wch: 30 }];
+        applyGridStyle(wsValidation, 1);
         XLSX.utils.book_append_sheet(wb, wsValidation, '数据校验');
     }
 
@@ -498,20 +565,91 @@ function escapeHtml(text) {
 // ========================
 function displayConfig() {
     const container = document.getElementById('configDisplay');
+    const cfg = SPLIT_CONFIG;
 
-    const rules = [
-        { label: '征税规则', content: '原产国为"中国"才拆征税，"中国台湾"不算（永芯/北京/北方/京城）' },
-        { label: '行数限制', content: '永芯：一票最多40行，超出自动拆分' },
-        { label: 'PO分组', content: '北京/北方/京城/永芯：每票最多5个PO；天津：每票最多3个PO' },
-        { label: '高亮规则', content: '同票内同产品编号，大PO/小PO/备案单位/原产国任一不同→整行黄色+不同单元格红色' },
-        { label: '131豁免', content: '原产国美国且HSCODE不在豁免清单→131豁免外；其他情况→非131豁免外' },
-        { label: '分票编号', content: '免表票前缀MB，征税票前缀TAX，格式：前缀+月日+序号' }
+    // 一、整体流程
+    const steps = [
+        ['1', '读取数据', '从「' + cfg.sourceSheet + '」sheet 读取明细行；若含「' + cfg.exemptionSheet + '」sheet 则加载豁免HSCODE清单（否则用内置默认清单 ' + cfg.defaultExemptionCodes.length + ' 条）'],
+        ['2', '生成基础标记', '按 账册号后三位 + 业务申报表号 + 客户类型 生成每行的基础分票标记'],
+        ['3', '征税 / 免表判定', '根据客户类型、原产国、品名判定每行是「征税」还是「免表」'],
+        ['4', '131豁免判定', '原产国为美国时，按HSCODE是否在豁免清单判定「131豁免外 / 非131豁免外」'],
+        ['5', 'PO分组', '同一基础标记下按PO分组，每票PO数量不超过上限，超出自动拆成多票'],
+        ['6', '行数限制', '永芯每票最多40行，超出自动拆成多票'],
+        ['7', '一致性高亮', '同票内相同产品编号，若 大PO / 小PO / 备案单位 / 原产国 任一不同 → 整行黄色、差异单元格红色加粗'],
+        ['8', '生成分票编号', '免表前缀MB、征税前缀TAX，格式为 前缀 + 月日 + 序号'],
+        ['9', '生成分票理由', '逐票汇总本票包含的标记与拆分原因，便于追溯'],
+        ['10', '数据完整性校验', '按uodId逐单元格比对拆票前后，确保无行丢失 / 多余 / 错位']
     ];
 
-    let html = '';
-    for (const r of rules) {
-        html += `<div class="config-item"><strong>${r.label}</strong>：${r.content}</div>`;
+    const customerRows = cfg.customerTypes.map(function (ct) {
+        return '<tr><td>' + escapeHtml(ct.label) + '</td><td>' + (ct.isTianjin ? '是（天津规则）' : '否') + '</td><td>' + (ct.isYongxin ? '是（40行上限）' : '否') + '</td></tr>';
+    }).join('');
+
+    function ruleRows(rules, def) {
+        let rows = rules.map(function (r) {
+            let cond;
+            if (r.match.originCountry) {
+                cond = '原产国包含「' + r.match.originCountry + '」' + (r.match.originCountryExclude ? ' 且不含「' + r.match.originCountryExclude + '」' : '');
+            } else {
+                cond = '品名包含 ' + r.match.productName.map(function (p) { return '「' + p + '」'; }).join('、');
+            }
+            const type = r.type === '征税' ? '征税' : '免表';
+            return '<tr><td>' + type + '</td><td>' + cond + '</td><td>' + escapeHtml(r.reason) + '</td></tr>';
+        }).join('');
+        rows += '<tr><td>' + (def.type === '征税' ? '征税' : '免表') + '</td><td>其他情况</td><td>' + escapeHtml(def.reason) + '</td></tr>';
+        return rows;
     }
+
+    const beijingRows = ruleRows(cfg.beijingTaxRule.rules, cfg.beijingTaxRule.default);
+    const tianjinRows = ruleRows(cfg.tianjinTaxRule.rules, cfg.tianjinTaxRule.default);
+
+    const poRows = Object.keys(cfg.maxPOPerTicket).map(function (k) {
+        const label = k === 'default' ? '其他客户（北京/北方/京城/永芯/未知）' : k;
+        return '<tr><td>' + label + '</td><td>' + cfg.maxPOPerTicket[k] + ' 个PO / 票</td></tr>';
+    }).join('');
+
+    const rowRows = Object.keys(cfg.maxRowsPerTicket).map(function (k) {
+        const label = k === 'default' ? '其他客户' : k;
+        const val = cfg.maxRowsPerTicket[k] === null ? '无限制' : cfg.maxRowsPerTicket[k] + ' 行 / 票';
+        return '<tr><td>' + label + '</td><td>' + val + '</td></tr>';
+    }).join('');
+
+    const hlDims = cfg.highlightDimensions.map(function (d) { return '「' + d.label + '」'; }).join('、');
+
+    const ex = cfg.exemption131;
+    const exText = '原产国为美国：HSCODE在豁免清单 → ' + ex.usOriginRule.inList.status + '；不在清单 → ' + ex.usOriginRule.notInList.status + '。原产国非美国 → ' + ex.nonUsRule.status + '。';
+
+    const prefixText = '免表票前缀「' + cfg.ticketPrefix['免表'] + '」，征税票前缀「' + cfg.ticketPrefix['default'] + '」；编号格式：前缀 + 月日(MMDD) + 两位序号。';
+
+    let html = '';
+    html += '<div class="logic-intro">以下为当前线上版本实际执行的拆票逻辑（与 <code>js/config.js</code> 配置完全一致，本页由该配置实时生成）。业务人员可逐项核对每票的生成依据，避免"黑箱"。</div>';
+
+    html += '<div class="logic-section"><h3>一、整体处理流程</h3><ol class="logic-steps">';
+    steps.forEach(function (s) {
+        html += '<li><span class="step-no">' + s[0] + '</span><div><b>' + s[1] + '</b><br><span class="step-desc">' + s[2] + '</span></div></li>';
+    });
+    html += '</ol></div>';
+
+    html += '<div class="logic-section"><h3>二、客户类型识别</h3><table class="logic-table"><thead><tr><th>客户类型</th><th>是否天津</th><th>是否永芯</th></tr></thead><tbody>' + customerRows + '</tbody></table></div>';
+
+    html += '<div class="logic-section"><h3>三、征税 / 免表判定（北京 / 北方 / 京城 / 永芯）</h3><table class="logic-table"><thead><tr><th>结果</th><th>触发条件</th><th>说明</th></tr></thead><tbody>' + beijingRows + '</tbody></table></div>';
+
+    html += '<div class="logic-section"><h3>四、征税 / 免表判定（天津中芯）</h3><table class="logic-table"><thead><tr><th>结果</th><th>触发条件</th><th>说明</th></tr></thead><tbody>' + tianjinRows + '</tbody></table></div>';
+
+    html += '<div class="logic-section"><h3>五、PO分组上限</h3><table class="logic-table"><thead><tr><th>客户类型</th><th>上限</th></tr></thead><tbody>' + poRows + '</tbody></table></div>';
+
+    html += '<div class="logic-section"><h3>六、单票行数上限</h3><table class="logic-table"><thead><tr><th>客户类型</th><th>上限</th></tr></thead><tbody>' + rowRows + '</tbody></table></div>';
+
+    html += '<div class="logic-section"><h3>七、一致性高亮规则</h3><p class="logic-text">同一分票内，若<b>相同产品编号</b>的各行在 ' + hlDims + ' 维度上出现<b>不一致</b>，则：整行标记为<span class="yellow-bg">黄色</span>，具体不一致的单元格用<span class="red-font">红色加粗</span>标注。高亮仅为风险提示，不改变分票结果。</p></div>';
+
+    html += '<div class="logic-section"><h3>八、131豁免判定</h3><p class="logic-text">' + exText + '</p></div>';
+
+    html += '<div class="logic-section"><h3>九、分票编号规则</h3><p class="logic-text">' + prefixText + '</p></div>';
+
+    html += '<div class="logic-section"><h3>十、数据完整性校验</h3><p class="logic-text">拆分完成后，按 <b>uodId</b> 将结果与原始数据逐行逐单元格比对：行数是否一致、是否有丢失 / 多余 / 重复的uodId、原始列（除新增"分票编号/分票"两列外）是否完全一致。任一异常都会在"数据校验"页与下载的Excel中提示。</p></div>';
+
+    html += '<div class="logic-section logic-note"><p>说明：以上规则由 <code>js/config.js</code> 驱动，业务规则调整时只需修改配置，无需改动引擎代码。本页内容即由该配置实时生成，所见即所得。</p></div>';
+
     container.innerHTML = html;
 }
 
