@@ -522,25 +522,6 @@ body {
     padding: 4px 16px 16px 16px;
 }
 
-/* ====== 网站访问统计 ====== */
-.visit-stats {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 18px;
-    margin: 12px 0 4px 0;
-    padding: 12px 16px;
-    background: #f4f8fb;
-    border: 1px solid #dbe7f0;
-    border-radius: 10px;
-    font-size: 13px;
-    color: #44566a;
-}
-.visit-stats-title { font-weight: 600; color: #1a2b3c; }
-.visit-item { white-space: nowrap; }
-.visit-item b { color: #1565c0; font-size: 15px; }
-.visit-note { font-size: 11px; color: #94a3b8; width: 100%; margin-top: 2px; }
-
 /* ====== 留底记录 ====== */
 .audit-table {
     width: 100%;
