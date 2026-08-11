@@ -555,8 +555,8 @@ function downloadResult() {
 }
 
 // ========================
-// 留底（审计）功能：每次上传拆票后自动保存结果副本
-// 纯前端实现（无后端）：结果文件存浏览器 IndexedDB，元数据存 localStorage，并自动下载留底文件
+// 留底（审计）功能：每次上传拆票后自动保存「处理后的结果文件」+「原始上传文件」两份副本
+// 纯前端实现（无后端）：两份文件均存浏览器 IndexedDB，元数据存 localStorage，并自动下载到本机"下载"文件夹
 // ========================
 const AUDIT_LOG_KEY = 'lams_audit_log';
 const AUDIT_LIMIT = 200;
@@ -604,7 +604,7 @@ function workbookToBlob(wb) {
     return new Blob([arr], { type: 'application/octet-stream' });
 }
 
-// 每次拆票后调用：生成留底文件 -> 存IndexedDB -> 写日志 -> 自动下载
+// 每次拆票后调用：生成留底文件 + 留存原始上传文件 -> 存IndexedDB -> 写日志 -> 自动下载
 async function autoSaveAudit(result, fileName, rows, file) {
     const wb = buildWorkbook(result);
     const blob = workbookToBlob(wb);
@@ -615,6 +615,14 @@ async function autoSaveAudit(result, fileName, rows, file) {
     const id = 'audit_' + now.getTime() + '_' + Math.random().toString(36).slice(2, 8);
     const downloadName = `拆票留底_${ts}.xlsx`;
 
+    // 原始上传文件：尽量原样留存（用于防扯皮，可追溯到最初上传数据）
+    let origId = null, origName = null, hasOrig = false;
+    if (file && file.size) {
+        origId = 'orig_' + id;
+        origName = `${ts}_原始_${fileName || '上传文件'}`;
+        hasOrig = true;
+    }
+
     const record = {
         id: id,
         time: now.toLocaleString('zh-CN', { hour12: false }),
@@ -624,10 +632,16 @@ async function autoSaveAudit(result, fileName, rows, file) {
         ticketCount: Object.keys(result.ticketNumbers).length,
         inconsistentCount: result.inconsistentInfo.highlightedRows.size,
         validationPassed: result.validation ? result.validation.passed : false,
-        downloadName: downloadName
+        downloadName: downloadName,
+        origId: origId,
+        origName: origName,
+        hasOrig: hasOrig
     };
 
     try { await auditDBPut(id, blob); } catch (e) { console.warn('留底文件存储失败', e); }
+    if (hasOrig) {
+        try { await auditDBPut(origId, file); } catch (e) { console.warn('原始文件存储失败', e); record.hasOrig = false; }
+    }
 
     const log = loadAuditLog();
     log.unshift(record);
@@ -642,8 +656,19 @@ async function autoSaveAudit(result, fileName, rows, file) {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) { console.warn('自动下载留底失败', e); }
 
+    // 自动下载原始上传文件（防扯皮：本地永久留存最初数据）
+    if (hasOrig) {
+        try {
+            const url = URL.createObjectURL(file);
+            const a = document.createElement('a');
+            a.href = url; a.download = origName;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (e) { console.warn('自动下载原始文件失败', e); }
+    }
+
     if (document.getElementById('auditTable')) displayAuditLog();
-    showAlert('已自动生成留底文件：' + downloadName, 'success');
+    showAlert('已自动留底：' + downloadName + (hasOrig ? '（含原始上传文件）' : ''), 'success');
 }
 
 function downloadAuditBlob(id, name) {
@@ -657,20 +682,34 @@ function downloadAuditBlob(id, name) {
     }).catch(e => showAlert('读取留底失败：' + e.message, 'error'));
 }
 
+function downloadOrigBlob(origId, name) {
+    auditDBGet(origId).then(blob => {
+        if (!blob) { showAlert('原始文件已不存在（可能清理了浏览器数据）', 'error'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name || '原始上传文件';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }).catch(e => showAlert('读取原始文件失败：' + e.message, 'error'));
+}
+
 function displayAuditLog() {
     const container = document.getElementById('auditTable');
     if (!container) return;
     const log = loadAuditLog();
     if (log.length === 0) {
-        container.innerHTML = '<p class="no-data">暂无留底记录。每次上传并拆票后，系统会自动生成留底文件并保存在本浏览器。</p>';
+        container.innerHTML = '<p class="no-data">暂无留底记录。每次上传并拆票后，系统会自动生成「处理后的结果文件」与「原始上传文件」两份留底，并保存在本浏览器、自动下载到本机"下载"文件夹。</p>';
         return;
     }
     let html = '<table class="audit-table"><thead><tr>'
-        + '<th>时间</th><th>原始文件</th><th>大小</th><th>数据行</th><th>分票数</th><th>不一致行</th><th>校验</th><th>留底文件</th><th>操作</th>'
+        + '<th>时间</th><th>原始文件</th><th>大小</th><th>数据行</th><th>分票数</th><th>不一致行</th><th>校验</th><th>留底文件</th><th>原始上传</th><th>操作</th>'
         + '</tr></thead><tbody>';
     for (const r of log) {
         const vClass = r.validationPassed ? 'ok' : 'bad';
         const vText = r.validationPassed ? '✅通过' : '❌未通过';
+        const origBtn = r.hasOrig
+            ? '<button class="mini-btn" data-orig-id="' + r.origId + '" data-orig-name="' + escapeHtml(r.origName) + '">下载原始</button>'
+            : '<span class="audit-none">—</span>';
         html += '<tr>'
             + '<td>' + escapeHtml(r.time) + '</td>'
             + '<td>' + escapeHtml(r.fileName) + '</td>'
@@ -680,18 +719,22 @@ function displayAuditLog() {
             + '<td>' + r.inconsistentCount + '</td>'
             + '<td class="' + vClass + '">' + vText + '</td>'
             + '<td class="audit-file">' + escapeHtml(r.downloadName) + '</td>'
+            + '<td>' + origBtn + '</td>'
             + '<td><button class="mini-btn" data-audit-id="' + r.id + '" data-audit-name="' + escapeHtml(r.downloadName) + '">重新下载</button></td>'
             + '</tr>';
     }
     html += '</tbody></table>';
     html += '<div class="audit-actions">'
         + '<button class="mini-btn danger" id="clearAuditBtn">清空留底记录</button>'
-        + '<span class="audit-hint">留底文件保存在本浏览器（IndexedDB），仅本机可查看/下载；清空仅删除记录与文件索引，不影响已导出的Excel。</span>'
+        + '<span class="audit-hint">留底文件与原始上传文件均保存在本浏览器（IndexedDB），仅本机可查看/下载；每次上传会自动下载这两个文件到"下载"文件夹作为永久备份。清空仅删除记录与文件索引，不影响已导出的文件。</span>'
         + '</div>';
     container.innerHTML = html;
 
     container.querySelectorAll('[data-audit-id]').forEach(btn => {
         btn.addEventListener('click', () => downloadAuditBlob(btn.dataset.auditId, btn.dataset.auditName));
+    });
+    container.querySelectorAll('[data-orig-id]').forEach(btn => {
+        btn.addEventListener('click', () => downloadOrigBlob(btn.dataset.origId, btn.dataset.origName));
     });
     const clearBtn = document.getElementById('clearAuditBtn');
     if (clearBtn) {
