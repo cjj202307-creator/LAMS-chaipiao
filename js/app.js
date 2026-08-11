@@ -669,6 +669,55 @@ async function autoSaveAudit(result, fileName, rows, file) {
 
     if (document.getElementById('auditTable')) displayAuditLog();
     showAlert('已自动留底：' + downloadName + (hasOrig ? '（含原始上传文件）' : ''), 'success');
+
+    // 推送留底到管理员邮箱（最佳努力；失败不影响本地留底与下载）
+    if (SPLIT_CONFIG.auditUploadUrl) {
+        uploadAuditToMail(blob, file, record, downloadName).catch(e => console.warn('留底邮件推送失败（不影响本地留底）', e));
+    }
+}
+
+// 将本次拆票的两份留底（结果 + 原始）POST 到后端邮件代理，由后端发给管理员
+function blobToBase64(blob) {
+    return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => { const b64 = (r.result || '').split(',')[1] || ''; res(b64); };
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+    });
+}
+async function uploadAuditToMail(resultBlob, file, record, downloadName) {
+    const url = SPLIT_CONFIG.auditUploadUrl;
+    if (!url) return;
+    const meta = {
+        time: record.time,
+        fileName: record.fileName,
+        rowCount: record.rowCount,
+        ticketCount: record.ticketCount,
+        inconsistentCount: record.inconsistentCount,
+        validationPassed: record.validationPassed
+    };
+    const payload = {
+        meta: meta,
+        resultFile: await blobToBase64(resultBlob),
+        resultName: downloadName
+    };
+    if (file && file.size) {
+        payload.originalFile = await blobToBase64(file);
+        payload.originalName = record.origName || ('原始_' + record.fileName);
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+        const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: ctrl.signal
+        });
+        if (!r.ok) console.warn('留底邮件推送返回', r.status);
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function downloadAuditBlob(id, name) {
