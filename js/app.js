@@ -785,7 +785,7 @@ function displayConfig() {
     const tianjinRows = ruleRows(cfg.tianjinTaxRule.rules, cfg.tianjinTaxRule.default);
 
     const poRows = Object.keys(cfg.maxPOPerTicket).map(function (k) {
-        const label = k === 'default' ? '其他客户（北京/北方/京诚/永芯/未知）' : k;
+        const label = k === 'default' ? '其他客户（北京/北方/京城/永芯/未知）' : k;
         return '<tr><td>' + label + '</td><td>' + cfg.maxPOPerTicket[k] + ' 个PO / 票</td></tr>';
     }).join('');
 
@@ -810,7 +810,7 @@ function displayConfig() {
 
     html += '<div class="logic-section"><h3>二、客户类型识别</h3><table class="logic-table"><thead><tr><th>客户类型</th><th>是否天津</th><th>是否永芯</th></tr></thead><tbody>' + customerRows + '</tbody></table></div>';
 
-    html += '<div class="logic-section"><h3>三、征税 / 免表判定（北京 / 北方 / 京诚 / 永芯）</h3><table class="logic-table"><thead><tr><th>结果</th><th>触发条件</th><th>说明</th></tr></thead><tbody>' + beijingRows + '</tbody></table></div>';
+    html += '<div class="logic-section"><h3>三、征税 / 免表判定（北京 / 北方 / 京城 / 永芯）</h3><table class="logic-table"><thead><tr><th>结果</th><th>触发条件</th><th>说明</th></tr></thead><tbody>' + beijingRows + '</tbody></table></div>';
 
     html += '<div class="logic-section"><h3>四、征税 / 免表判定（天津中芯）</h3><table class="logic-table"><thead><tr><th>结果</th><th>触发条件</th><th>说明</th></tr></thead><tbody>' + tianjinRows + '</tbody></table></div>';
 
