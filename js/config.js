@@ -4,6 +4,11 @@
  */
 
 const SPLIT_CONFIG = {
+    // 留底邮件推送：部署好后端邮件代理后，把它的公网 URL 填到这里（如 'https://your-host/audit'）
+    // 留空表示不推送；前端每次拆票后会把「结果文件 + 原始上传文件」POST 给该地址，由后端发到你邮箱。
+    // 注意：此 URL 对应的后端须由你自己托管，凭据只在后端环境变量中，绝不可写进前端。
+    auditUploadUrl: '',
+
     // 客户类型识别规则（按优先级从高到低匹配）
     customerTypes: [
         { pattern: '天津中芯', label: '天津中芯', isTianjin: true },
