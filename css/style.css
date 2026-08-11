@@ -546,6 +546,7 @@ body {
 .audit-table .ok { color: var(--success); font-weight: 500; }
 .audit-table .bad { color: var(--danger); font-weight: 500; }
 .audit-table .audit-file { color: var(--text-secondary); font-size: 12px; }
+.audit-table .audit-none { color: var(--text-tertiary); }
 .audit-actions {
     display: flex;
     align-items: center;
